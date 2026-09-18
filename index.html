@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Europe Population Map</title>
+  <meta name="description" content="Interactive map of Europe: countries and localities, with population, GDP per capita (PPP) and legislative seats." />
+  <link rel="stylesheet" href="vendor/leaflet@1.9.4/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <h1>Europe Population Map</h1>
+      <span class="subtitle">countries &amp; localities &middot; interactive</span>
+    </div>
+    <div class="controls">
+      <div class="ctrl-group">
+        <label for="levelSelect">Show</label>
+        <select id="levelSelect">
+          <option value="country">Countries</option>
+          <option value="nuts2">Localities (NUTS&nbsp;2)</option>
+          <option value="nuts3">Localities (NUTS&nbsp;3)</option>
+        </select>
+      </div>
+      <div class="ctrl-group">
+        <label for="labelSelect">Label</label>
+        <select id="labelSelect">
+          <option value="name">Name</option>
+          <option value="population">Population</option>
+          <option value="gdp_per_capita_ppp">GDP / person (PPP)</option>
+          <option value="seats_lower">Legislative seats</option>
+        </select>
+      </div>
+      <div class="ctrl-group slider-group">
+        <label for="minPopSlider">
+          Min. population: <span id="minPopValue">0</span>
+        </label>
+        <input id="minPopSlider" type="range" min="0" max="90" step="0.5" value="0" />
+        <span class="hint" id="sliderHint"></span>
+      </div>
+    </div>
+  </header>
+
+  <main id="layout">
+    <div id="map"></div>
+    <aside id="sidepanel" class="empty" aria-live="polite">
+      <div id="panelContent">
+        <p class="placeholder">Click a polygon on the map to see its details.</p>
+      </div>
+    </aside>
+  </main>
+
+  <div id="loadingOverlay" class="visible">
+    <div class="spinner"></div>
+    <p>Loading map data&hellip;</p>
+  </div>
+
+  <script src="vendor/leaflet@1.9.4/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

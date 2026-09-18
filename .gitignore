@@ -1,0 +1,10 @@
+# large raw inputs downloaded by the build script — not committed
+build/europe_countries.geojson
+build/nuts2.geojson
+build/nuts3.geojson
+build/data/
+
+# os / editor
+.DS_Store
+*.swp
+.vscode/
