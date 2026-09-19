@@ -10,12 +10,28 @@ folder over HTTP so the GeoJSON files load).
 - **Show selector** — switch between *Countries*, *Localities (NUTS&nbsp;2)*
   and *Localities (NUTS&nbsp;3)*.
 - **Label selector** — write **name**, **population**, **GDP per person
-  (PPP)** or **number of representatives in the legislative body** on each
-  polygon.
-- **Hover** — a polygon is highlighted on mouse-over, with a tooltip.
+  (PPP)**, **number of representatives in the legislative body**, **MEPs**
+  (country level) or **projected MEPs** on each polygon.
+- **Label decluttering** — labels are placed at feature centroids and
+  collision-checked in screen space. When zooming out, overlapping labels are
+  hidden so the map stays readable; they re-appear as you zoom in. Larger
+  items (by population) and small priority countries keep their labels.
+- **Hover** — a polygon is highlighted on mouse-over, with a tooltip
+  (countries also show their number of MEPs).
 - **Click** — a side panel shows all details for the selected item
-  (country / region), including population, GDP/cap PPP, legislative seats and
+  (country / region), including population, GDP/cap PPP, legislative seats,
+  MEPs in the European Parliament (country level), projected MEPs and
   parent country.
+- **MEPs** — countries show the number of Members of the European Parliament
+  elected there in the 2024–2029 term (720 seats in total). Non-EU countries
+  show “—”.
+- **Projected MEPs** — at every level (countries and NUTS&nbsp;2 /
+  NUTS&nbsp;3 regions), each EU item shows a *projected* number of MEPs: the
+  **720** seats of the European Parliament distributed **purely
+  proportionally to population** — `round(population / total EU population
+  at that level × 720)` — so projections of one level always sum to ≈ 720.
+  Compare them with the actual, degressively-proportional allocation to see
+  how much small states are over-represented in the EP.
 - **Minimum-population slider** — filters how the map breaks items down:
   - `0` (off): the chosen level is shown in full.
   - `> 0`: when switching to a more local level, an item is only replaced by
@@ -33,15 +49,18 @@ as compact GeoJSON with the attributes embedded in each feature's properties:
 | level    | file                | count |
 |----------|---------------------|-------|
 | country  | `data/countries.geojson` | 38    |
-| NUTS 2   | `data/nuts2.geojson`     | 321   |
-| NUTS 3   | `data/nuts3.geojson`     | 1462  |
+| NUTS 2   | `data/nuts2.geojson`     | 334   |
+| NUTS 3   | `data/nuts3.geojson`     | 1514  |
 
 Country boundaries come from the
 [leakyMirror/map-of-europe](https://github.com/leakyMirror/map-of-europe)
 GeoJSON; regional boundaries from
 [Eurostat GISCO NUTS 2021](https://gisco-services.ec.europa.eu/distribution/v2/nuts/).
+
 Population, GDP/capita (PPP) and legislative-seat figures are rounded
-approximations compiled for the demo. Regenerate the prepared files with:
+approximations compiled for the demo. MEP counts per country are the official
+allocation for the 2024–2029 term (720 seats). Regenerate the prepared files
+with:
 
 ```bash
 python3 build/build_data.py
