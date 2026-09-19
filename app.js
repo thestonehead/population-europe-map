@@ -30,6 +30,8 @@ const LEVEL_LABELS = {
   nuts3: "Region (NUTS 3)",
 };
 
+const EP_TOTAL_MEPS = 720; // European Parliament seats, 2024–2029 term
+
 const LABEL_FIELDS = {
   name: { key: "name", fmt: (v) => v ?? "—" },
   population: { key: "population", fmt: (v) => formatPop(v) },
@@ -41,6 +43,8 @@ const LABEL_FIELDS = {
     key: "seats_lower",
     fmt: (v) => (v == null ? "—" : v.toLocaleString("en-US")),
   },
+  meps: { key: "meps", fmt: (v) => (v == null ? "—" : String(v)) },
+  meps_projected: { key: "meps_projected", fmt: (v) => (v == null ? "—" : String(v)) },
 };
 
 const state = {
@@ -80,6 +84,48 @@ function formatPop(v) {
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + "M";
   if (v >= 1_000) return (v / 1_000).toFixed(0) + "k";
   return String(v);
+}
+
+// MEPs of a country by ISO2 (null for non-EU countries).
+function countryMeps(iso2) {
+  if (!state.data.country) return null;
+  if (!state._mepByCountry) {
+    const m = new Map();
+    for (const f of state.data.country.features) m.set(f.properties.id, f.properties.meps);
+    state._mepByCountry = m;
+  }
+  return state._mepByCountry.get(iso2) ?? null;
+}
+
+// Total population of all EU features at the given level. The projections of
+// all EU features of one level sum to (about) 720.
+function euPopulationAtLevel(level) {
+  if (state.data["_euPop_" + level] != null) return state.data["_euPop_" + level];
+  const fc = state.data[level];
+  let total = 0;
+  if (fc) {
+    for (const f of fc.features) {
+      const cc = level === "country" ? f.properties.id : f.properties.country;
+      if (countryMeps(cc) != null) total += f.properties.population || 0;
+    }
+  }
+  state.data["_euPop_" + level] = total;
+  return total;
+}
+
+// Projected number of MEPs for an EU feature at any level: the 720 EP seats
+// (2024–2029 term) distributed purely proportionally to population, i.e. the
+// feature's share of the total EU population at its level times 720. Small
+// regions can round to 0. Returns null for non-EU features or features
+// without population data.
+function projectedMeps(feat) {
+  const pop = feat.properties.population;
+  if (!pop) return null;
+  const cc = feat.properties.level === "country" ? feat.properties.id : feat.properties.country;
+  if (countryMeps(cc) == null) return null;
+  const eu = euPopulationAtLevel(feat.properties.level);
+  if (!eu) return null;
+  return Math.round((pop / eu) * EP_TOTAL_MEPS);
 }
 
 function featureKey(f) {
@@ -225,6 +271,9 @@ function labelFor(feat) {
   if (state.label === "name") {
     return feat.properties.name || feat.properties.id;
   }
+  if (state.label === "meps_projected") {
+    return field.fmt(projectedMeps(feat));
+  }
   return field.fmt(feat.properties[field.key]);
 }
 
@@ -266,7 +315,10 @@ function onEachFeature(feat, layer) {
     },
   });
 
-  const tipText = feat.properties.name + (feat.properties.population ? " &middot; " + formatPop(feat.properties.population) : "");
+  let tipText = feat.properties.name + (feat.properties.population ? " &middot; " + formatPop(feat.properties.population) : "");
+  if (feat.properties.level === "country" && feat.properties.meps != null) {
+    tipText += " &middot; " + feat.properties.meps + " MEPs";
+  }
   layer.bindTooltip(tipText, {
     sticky: true,
     direction: "top",
@@ -274,20 +326,65 @@ function onEachFeature(feat, layer) {
   });
 }
 
+const LABEL_W = 220; // max estimated label width, px (labels are nowrap)
+const LABEL_H = 14;
+const LABEL_PAD = 3; // extra separation between labels, in px
+
+// Estimated label box on screen, centered on the feature centroid.
+function labelBox(c, txt) {
+  const p = map.latLngToLayerPoint(c);
+  const w = Math.min(LABEL_W, Math.max(24, txt.length * 6.5));
+  return { x: p.x - w / 2, y: p.y - LABEL_H / 2, w: w, h: LABEL_H };
+}
+
+function boxesOverlap(a, b) {
+  return !(a.x + a.w < b.x - LABEL_PAD || b.x + b.w < a.x - LABEL_PAD ||
+           a.y + a.h < b.y - LABEL_PAD || b.y + b.h < a.y - LABEL_PAD);
+}
+
+// Small countries whose labels must never be hidden just because a neighbour
+// was drawn first.
+const PRIORITY_IDS = new Set(["MT", "LU", "CY", "EE", "LV", "SI", "HR"]);
+
 function renderLabels(features) {
   state.labelLayer = L.layerGroup().addTo(map);
+  const items = [];
   for (const f of features) {
     const c = centroidOf(f);
     if (!c) continue;
     const txt = labelFor(f);
     if (txt == null || txt === "—") continue;
-    const dim = shouldDim(f);
-    L.marker(c, {
+    items.push({ f, c, txt, dim: shouldDim(f) });
+  }
+
+  // Priority order: keep-at-all-costs small countries, then by population
+  // descending so big items keep their labels when zoomed out.
+  items.sort((a, b) => {
+    const pa = PRIORITY_IDS.has(a.f.properties.id) ? 1 : 0;
+    const pb = PRIORITY_IDS.has(b.f.properties.id) ? 1 : 0;
+    if (pa !== pb) return pb - pa;
+    return (b.f.properties.population || 0) - (a.f.properties.population || 0);
+  });
+
+  const shown = [];
+  for (const it of items) {
+    const box = labelBox(it.c, it.txt);
+    let collides = false;
+    for (const s of shown) {
+      if (boxesOverlap(box, s.box)) { collides = true; break; }
+    }
+    if (collides) continue;
+    it.box = box;
+    shown.push(it);
+  }
+
+  for (const it of shown) {
+    L.marker(it.c, {
       icon: L.divIcon({
-        className: "map-label" + (dim ? " dim" : ""),
-        html: escapeHtml(txt),
-        iconSize: [120, 14],
-        iconAnchor: [60, 7],
+        className: "map-label" + (it.dim ? " dim" : ""),
+        html: escapeHtml(it.txt),
+        iconSize: [it.box.w, LABEL_H],
+        iconAnchor: [it.box.w / 2, LABEL_H / 2],
       }),
       interactive: false,
       keyboard: false,
@@ -323,6 +420,16 @@ function render() {
   renderLabels(features);
 }
 
+// Re-run label decluttering after pan/zoom: which labels fit changes with the
+// viewport, and it is much cheaper than redrawing polygons.
+map.on("zoomend moveend", () => {
+  if (!state.labelLayer || !state.layer) return;
+  const { features: visible } = computeVisible();
+  map.removeLayer(state.labelLayer);
+  state.labelLayer = null;
+  renderLabels(visible);
+});
+
 // ---------------------------------------------------------------------------
 // Selection / side panel
 // ---------------------------------------------------------------------------
@@ -346,6 +453,13 @@ function showPanel(feat) {
     <div class="detail-row"><span class="k">GDP / person (PPP)</span><span class="v">${p.gdp_per_capita_ppp == null ? "—" : "$" + p.gdp_per_capita_ppp.toLocaleString("en-US")}</span></div>
     <div class="detail-row"><span class="k">Legislative seats</span><span class="v">${p.seats_lower == null ? "—" : p.seats_lower.toLocaleString("en-US")}</span></div>
   `;
+  if (p.level === "country") {
+    rows += `<div class="detail-row"><span class="k">MEPs in European Parliament</span><span class="v">${p.meps == null ? "—" : p.meps.toLocaleString("en-US")}</span></div>`;
+  }
+  const proj = projectedMeps(feat);
+  if (proj != null) {
+    rows += `<div class="detail-row"><span class="k">Projected MEPs (pop.-proportional)</span><span class="v">≈ ${proj.toLocaleString("en-US")}</span></div>`;
+  }
   if (p.level !== "country") {
     rows += `<div class="detail-row"><span class="k">Country</span><span class="v">${escapeHtml(p.country_name)} (${p.country})</span></div>`;
   }

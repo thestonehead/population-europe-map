@@ -7,15 +7,14 @@ Inputs (downloaded by this script if missing):
   - nuts2.geojson            : NUTS level 2 regions (GISCO)
   - nuts3.geojson            : NUTS level 3 regions (GISCO)
 
-Outputs (written to /workspace/.../data/):
+Outputs (written to <repo>/data/):
   - countries.geojson
   - nuts2.geojson
   - nuts3.geojson
-  - stats.json   (country & region stats merged from built-in tables)
 
 All numeric attributes used by the UI (population, gdp_per_capita_ppp,
-seats_lower) are embedded directly into the GeoJSON feature properties so the
-frontend has everything it needs without extra joins.
+seats_lower, meps) are embedded directly into the GeoJSON feature properties so
+the frontend has everything it needs without extra joins.
 """
 import json
 import os
@@ -24,7 +23,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = HERE  # raw inputs land next to this script
-DATA = os.path.join(HERE, "data")
+DATA = os.path.normpath(os.path.join(HERE, "..", "data"))
 os.makedirs(DATA, exist_ok=True)
 
 # Douglas-Peucker tolerance in degrees (~0.01deg ~ 1km).
@@ -94,6 +93,17 @@ COUNTRY_STATS = {
     "ME": ("Montenegro", 0.62, 24000, 81),
     "MK": ("North Macedonia", 1.8, 19000, 120),
     "TR": ("Turkey", 85.0, 32000, 600),
+}
+
+# MEPs per country in the European Parliament, 2024-2029 term (720 seats total).
+# Non-EU countries are absent and get `meps: null`.
+# iso2 -> seats
+COUNTRY_MEPS = {
+    "AT": 20, "BE": 22, "BG": 17, "HR": 12, "CY": 6, "CZ": 21,
+    "DK": 15, "EE": 7, "FI": 15, "FR": 81, "DE": 96, "GR": 21,
+    "HU": 21, "IE": 14, "IT": 76, "LV": 9, "LT": 11, "LU": 6,
+    "MT": 6, "NL": 31, "PL": 53, "PT": 21, "RO": 33, "SK": 15,
+    "SI": 9, "ES": 61, "SE": 21,
 }
 
 # Map leakyMirror "NAME" -> ISO2 (only for the countries we want on the map).
@@ -357,6 +367,7 @@ def build_countries():
             "population": round(pop_m * 1_000_000),
             "gdp_per_capita_ppp": stats[2] if stats else None,
             "seats_lower": stats[3] if stats else None,
+            "meps": COUNTRY_MEPS.get(iso2),
         }
         feats.append({
             "type": "Feature",
@@ -412,6 +423,7 @@ def build_nuts(infile, outfile, level):
             "population": round(pop_m * 1_000_000),
             "gdp_per_capita_ppp": gdp,
             "seats_lower": None,
+            "meps": None,
         }
         feats.append({
             "type": "Feature",
