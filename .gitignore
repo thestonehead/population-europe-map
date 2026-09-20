@@ -1,5 +1,6 @@
 # large raw inputs downloaded by the build script — not committed
 build/europe_countries.geojson
+build/nuts1.geojson
 build/nuts2.geojson
 build/nuts3.geojson
 build/data/
