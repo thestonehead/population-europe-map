@@ -7,8 +7,8 @@ folder over HTTP so the GeoJSON files load).
 
 ## Features
 
-- **Show selector** — switch between *Countries*, *Localities (NUTS&nbsp;2)*
-  and *Localities (NUTS&nbsp;3)*.
+- **Show selector** — switch between *Countries*, *Major regions (NUTS&nbsp;1)*,
+  *Localities (NUTS&nbsp;2)* and *Localities (NUTS&nbsp;3)*.
 - **Label selector** — write **name**, **population**, **GDP per person
   (PPP)**, **number of representatives in the legislative body**, **MEPs**
   (country level) or **projected MEPs** on each polygon.
@@ -20,8 +20,16 @@ folder over HTTP so the GeoJSON files load).
   (countries also show their number of MEPs).
 - **Click** — a side panel shows all details for the selected item
   (country / region), including population, GDP/cap PPP, legislative seats,
-  MEPs in the European Parliament (country level), projected MEPs and
-  parent country.
+  MEPs in the European Parliament (country level), projected MEPs, own
+  administration status and parent country.
+- **Own administration (legal)** — NUTS regions are shaded differently
+  depending on whether they are real administrative-legal units in their
+  country (own government / elected assembly: German Länder, Croatian
+  županije, …) or purely statistical groupings (e.g. Croatian NUTS&nbsp;2,
+  Swedish NUTS&nbsp;1). Teal = has own administration, indigo = statistical
+  grouping. The side panel shows the same information per region. Exceptions
+  are handled per region (Åland, Azores/Madeira, Vojvodina, UK devolved
+  nations, German city-states, …).
 - **MEPs** — countries show the number of Members of the European Parliament
   elected there in the 2024–2029 term (720 seats in total). Non-EU countries
   show “—”.
@@ -49,6 +57,7 @@ as compact GeoJSON with the attributes embedded in each feature's properties:
 | level    | file                | count |
 |----------|---------------------|-------|
 | country  | `data/countries.geojson` | 38    |
+| NUTS 1   | `data/nuts1.geojson`     | 125   |
 | NUTS 2   | `data/nuts2.geojson`     | 334   |
 | NUTS 3   | `data/nuts3.geojson`     | 1514  |
 
@@ -59,8 +68,11 @@ GeoJSON; regional boundaries from
 
 Population, GDP/capita (PPP) and legislative-seat figures are rounded
 approximations compiled for the demo. MEP counts per country are the official
-allocation for the 2024–2029 term (720 seats). Regenerate the prepared files
-with:
+allocation for the 2024–2029 term (720 seats). The "own administration"
+flag (true/false per region) reflects whether the NUTS unit is an
+administrative-legal entity in its country; it is a curated approximation
+compiled from national structures — treat it as indicative, not legal advice.
+Regenerate the prepared files with:
 
 ```bash
 python3 build/build_data.py

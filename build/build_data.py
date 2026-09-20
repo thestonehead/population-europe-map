@@ -39,6 +39,7 @@ NUTS_CC_ALIAS = {
 
 RAW = {
     "europe_countries.geojson": "https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson",
+    "nuts1.geojson": "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_4326_LEVL_1.geojson",
     "nuts2.geojson": "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_4326_LEVL_2.geojson",
     "nuts3.geojson": "https://gisco-services.ec.europa.eu/distribution/v2/nuts/geojson/NUTS_RG_01M_2021_4326_LEVL_3.geojson",
 }
@@ -104,6 +105,77 @@ COUNTRY_MEPS = {
     "HU": 21, "IE": 14, "IT": 76, "LV": 9, "LT": 11, "LU": 6,
     "MT": 6, "NL": 31, "PL": 53, "PT": 21, "RO": 33, "SK": 15,
     "SI": 9, "ES": 61, "SE": 21,
+}
+
+# Whether NUTS regions at a given level are real administrative-legal units in
+# the country (own government / elected assembly / legally constituted
+# administration: Land parliament, county assembly, autonomous region, ...),
+# as opposed to groupings that exist only for statistics (Eurostat made many
+# NUTS units purely for statistical comparability, e.g. Croatian NUTS 2).
+# iso2 -> {nuts1/nuts2/nuts3: bool}; regions listed in
+# ADMIN_STATUS_EXCEPTIONS below override their country default.
+# "True" for whole-country NUTS units (AL0, CH0, HR0, ...) means the region
+# is the state itself.
+ADMIN_STATUS = {
+    "AL": {"nuts1": True,  "nuts2": False, "nuts3": True},   # qarku councils (NUTS3)
+    "AT": {"nuts1": False, "nuts2": True,  "nuts3": False},  # Länder are NUTS2 here
+    "BE": {"nuts1": True,  "nuts2": True,  "nuts3": True},   # regions / provinces / arrondissements
+    "BG": {"nuts1": False, "nuts2": False, "nuts3": True},  # oblasti have governors
+    "CH": {"nuts1": True,  "nuts2": False, "nuts3": True},  # cantons are NUTS3
+    "CY": {"nuts1": True,  "nuts2": True,  "nuts3": True},   # single-unit country
+    "CZ": {"nuts1": True,  "nuts2": False, "nuts3": True},  # kraje with councils
+    "DE": {"nuts1": True,  "nuts2": False, "nuts3": True},  # Länder / Reg.-Bez. / Kreise
+    "DK": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # regions with councils
+    "EE": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # EE00 is the whole state
+    "GR": {"nuts1": False, "nuts2": True,  "nuts3": True},   # perifereies / regional units
+    "ES": {"nuts1": False, "nuts2": True,  "nuts3": True},   # CCAA / provinces & islands
+    "FI": {"nuts1": False, "nuts2": False, "nuts3": True},   # maakunnat (except Åland)
+    "FR": {"nuts1": True,  "nuts2": False, "nuts3": True},   # régions / départements
+    "HR": {"nuts1": True,  "nuts2": False, "nuts3": True},   # županije have assemblies
+    "HU": {"nuts1": False, "nuts2": False, "nuts3": True},   # megyék have assemblies
+    "IE": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # regional assemblies (NUTS2)
+    "IS": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # landsvæði are statistical
+    "IT": {"nuts1": False, "nuts2": True,  "nuts3": True},   # regioni / province
+    "LI": {"nuts1": True,  "nuts2": True,  "nuts3": True},   # single-unit country
+    "LT": {"nuts1": True,  "nuts2": False, "nuts3": False},  # apskritys: statistical since 2015
+    "LU": {"nuts1": True,  "nuts2": True,  "nuts3": True},   # single-unit country
+    "LV": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # LV00 is the whole state
+    "ME": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # statistical regions
+    "MK": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # planning regions
+    "MT": {"nuts1": True,  "nuts2": True,  "nuts3": False},  # Gozo excepted below
+    "NL": {"nuts1": False, "nuts2": True,  "nuts3": False},  # provincies / COROP
+    "NO": {"nuts1": True,  "nuts2": True,  "nuts3": True},   # fylker with councils
+    "PL": {"nuts1": False, "nuts2": True,  "nuts3": False},  # voivodeship sejmiki
+    "PT": {"nuts1": False, "nuts2": False, "nuts3": True},   # intermunicipal communities
+    "RO": {"nuts1": False, "nuts2": False, "nuts3": True},   # judet councils
+    "RS": {"nuts1": False, "nuts2": False, "nuts3": False},  # okruzi statistical; Vojvodina excepted
+    "SE": {"nuts1": False, "nuts2": False, "nuts3": True},   # län with landsting; NUTS1/2 statistical
+    "SI": {"nuts1": True,  "nuts2": False, "nuts3": False},  # cohesion/statistical regions
+    "SK": {"nuts1": True,  "nuts2": False, "nuts3": True},   # kraje with assemblies
+    "TR": {"nuts1": False, "nuts2": False, "nuts3": True},   # iller with vali
+    "UK": {"nuts1": False, "nuts2": False, "nuts3": True},   # devolved nations excepted
+}
+
+# Region-level exceptions keyed by NUTS ID (override the country default at
+# whatever level the ID appears).
+ADMIN_STATUS_EXCEPTIONS = {
+    # whole-Land German NUTS-2 units (no Regierungsbezirk layer)
+    "DE30": True, "DE40": True, "DE50": True, "DE60": True,
+    "DE80": True, "DEE0": True, "DEF0": True, "DEG0": True,
+    # UK devolved nations (NUTS1); England's regions stay statistical
+    "UKL": True, "UKM": True, "UKN": True,
+    # autonomous / special regions
+    "RS12": True,   # Vojvodina autonomous province (NUTS2)
+    "FI2": True, "FI20": True,                     # Åland
+    "PT2": True, "PT3": True,                       # Azores / Madeira (NUTS1)
+    "PT20": True, "PT30": True,                    # Azores / Madeira (NUTS2)
+    "PT200": True, "PT300": True,                  # Azores / Madeira (NUTS3)
+    "FRY1": True, "FRY2": True, "FRY3": True, "FRY4": True, "FRY5": True,  # overseas régions (NUTS2)
+    "FRY": False,                                   # RUP NUTS1 grouping: no single government
+    "MT002": True,                                  # Gozo (regional committee)
+    "NO0B": False, "NO0B1": False, "NO0B2": False,  # Jan Mayen / Svalbard: no county council
+    # Mazowieckie is split into two purely statistical NUTS-2 units
+    "PL91": False, "PL92": False,
 }
 
 # Map leakyMirror "NAME" -> ISO2 (only for the countries we want on the map).
@@ -385,8 +457,59 @@ def _country_for_nuts(cc):
     return s  # tuple or None
 
 
+def admin_status_for(nid, cc, level):
+    lvl = f"nuts{level}"
+    if nid in ADMIN_STATUS_EXCEPTIONS:
+        return ADMIN_STATUS_EXCEPTIONS[nid]
+    status = ADMIN_STATUS.get(cc)
+    if not status:
+        return None
+    return status.get(lvl)
+
+
+def _region_fallbacks(d, level):
+    """Area-proportional population fallback for regions without NUTS_STATS.
+
+    Splits each country's total population across its regions of this level
+    proportionally to polygon area, so the level's populations sum to the
+    country total (much more plausible than a flat per-region estimate)."""
+    by_cc = {}
+    for f in d["features"]:
+        p = f["properties"]
+        cc = p.get("CNTR_CODE")
+        cc = NUTS_CC_ALIAS.get(cc, cc)
+        if cc not in COUNTRY_STATS:
+            continue
+        by_cc.setdefault(cc, []).append(f)
+    out = {}
+    for cc, feats in by_cc.items():
+        pops = {}
+        areas = {f["properties"]["NUTS_ID"]: max(geom_area(f["geometry"]), 1e-12) for f in feats}
+        known = {nid: NUTS_STATS[nid][1] for nid in areas if nid in NUTS_STATS}
+        total_m = COUNTRY_STATS[cc][1]
+        remainder_m = total_m - sum(known.values())
+        unknown = [nid for nid in areas if nid not in known]
+        if unknown:
+            if remainder_m <= 0:
+                # all NUTS_STATS values already exceed the country total:
+                # fall back to area share of the country total
+                for nid in unknown:
+                    share = areas[nid] / sum(areas.values())
+                    pops[nid] = round(total_m * share, 2)
+            else:
+                unknown_area = sum(areas[nid] for nid in unknown)
+                for nid in unknown:
+                    share = areas[nid] / unknown_area
+                    pops[nid] = round(remainder_m * share, 2)
+        for nid, pm in known.items():
+            pops[nid] = pm
+        out[cc] = pops
+    return out
+
+
 def build_nuts(infile, outfile, level):
     d = load(infile)
+    fallbacks = _region_fallbacks(d, level)
     feats = []
     seen = set()
     for f in d["features"]:
@@ -406,12 +529,7 @@ def build_nuts(infile, outfile, level):
             pop_m = nstat[1]
             gdp = nstat[2]
         else:
-            # fallback estimate: rough share by area is hard without data;
-            # assign a small per-region estimate derived from country total
-            # so every region has a value. Use a conservative estimate.
-            est_area = geom_area(f["geometry"])
-            # crude scaling only to give plausible per-region populations
-            pop_m = max(0.05, round(cstat[1] * 0.02, 2))
+            pop_m = fallbacks.get(cc, {}).get(nid) or max(0.05, round(cstat[1] * 0.02, 2))
             gdp = cstat[2]
         props = {
             "id": nid,
@@ -424,6 +542,7 @@ def build_nuts(infile, outfile, level):
             "gdp_per_capita_ppp": gdp,
             "seats_lower": None,
             "meps": None,
+            "admin_gov": admin_status_for(nid, cc, level),
         }
         feats.append({
             "type": "Feature",
@@ -439,6 +558,7 @@ def build_nuts(infile, outfile, level):
 def main():
     ensure_raw()
     build_countries()
+    build_nuts("nuts1.geojson", "nuts1.geojson", 1)
     build_nuts("nuts2.geojson", "nuts2.geojson", 2)
     build_nuts("nuts3.geojson", "nuts3.geojson", 3)
     print("done ->", DATA)

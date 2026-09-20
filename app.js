@@ -19,13 +19,15 @@
 
 const LEVEL_FILES = {
   country: "data/countries.geojson",
+  nuts1: "data/nuts1.geojson",
   nuts2: "data/nuts2.geojson",
   nuts3: "data/nuts3.geojson",
 };
 
-const LEVEL_ORDER = ["country", "nuts2", "nuts3"];
+const LEVEL_ORDER = ["country", "nuts1", "nuts2", "nuts3"];
 const LEVEL_LABELS = {
   country: "Country",
+  nuts1: "Major region (NUTS 1)",
   nuts2: "Region (NUTS 2)",
   nuts3: "Region (NUTS 3)",
 };
@@ -51,7 +53,7 @@ const state = {
   level: "country",
   label: "name",
   minPopM: 0,
-  data: { country: null, nuts2: null, nuts3: null }, // feature collections
+  data: { country: null, nuts1: null, nuts2: null, nuts3: null }, // feature collections
   layer: null, // current L.geoJSON layer
   overlayLayer: null, // yellow overlay polygons
   labelLayer: null, // L.layerGroup of tooltips
@@ -258,12 +260,18 @@ function computeVisible() {
   return { features: out, overlays };
 }
 
-function styleFor(feat) {
-  const isCountry = feat.properties.level === "country";
-  const base = {
-    className: isCountry ? "country-poly" : "region-poly",
-  };
+// Base polygon class: region level plus a shade for regions that have their
+// own administrative-legal government (vs. purely statistical groupings).
+function baseClassFor(feat) {
+  const base = feat.properties.level === "country" ? "country-poly" : "region-poly";
+  if (feat.properties.level !== "country" && feat.properties.admin_gov === true) {
+    return base + " poly-admin";
+  }
   return base;
+}
+
+function styleFor(feat) {
+  return { className: baseClassFor(feat) };
 }
 
 function labelFor(feat) {
@@ -287,26 +295,26 @@ function onEachFeature(feat, layer) {
   layer._featKey = featureKey(feat);
 
   if (state.selected && state.selected.id === feat.properties.id) {
-    layer.setStyle({ className: (feat.properties.level === "country" ? "country-poly " : "region-poly ") + "poly-selected" });
+    layer.setStyle({ className: baseClassFor(feat) + " poly-selected" });
   } else if (shouldDim(feat)) {
-    layer.setStyle({ className: (feat.properties.level === "country" ? "country-poly " : "region-poly ") + "poly-dim" });
+    layer.setStyle({ className: baseClassFor(feat) + " poly-dim" });
   }
 
   layer.on({
     mouseover: (e) => {
       const l = e.target;
       if (l.options.className && l.options.className.includes("poly-selected")) return;
-      l.setStyle({ className: (feat.properties.level === "country" ? "country-poly " : "region-poly ") + "poly-hover" });
+      l.setStyle({ className: baseClassFor(feat) + " poly-hover" });
       l.bringToFront();
     },
     mouseout: (e) => {
       const l = e.target;
       if (state.selected && state.selected.id === feat.properties.id) {
-        l.setStyle({ className: (feat.properties.level === "country" ? "country-poly " : "region-poly ") + "poly-selected" });
+        l.setStyle({ className: baseClassFor(feat) + " poly-selected" });
       } else if (shouldDim(feat)) {
-        l.setStyle({ className: (feat.properties.level === "country" ? "country-poly " : "region-poly ") + "poly-dim" });
+        l.setStyle({ className: baseClassFor(feat) + " poly-dim" });
       } else {
-        l.setStyle({ className: feat.properties.level === "country" ? "country-poly" : "region-poly" });
+        l.setStyle({ className: baseClassFor(feat) });
       }
     },
     click: (e) => {
@@ -462,6 +470,14 @@ function showPanel(feat) {
   }
   if (p.level !== "country") {
     rows += `<div class="detail-row"><span class="k">Country</span><span class="v">${escapeHtml(p.country_name)} (${p.country})</span></div>`;
+    const admin = p.admin_gov;
+    rows += `<div class="detail-row"><span class="k">Own administration</span><span class="v">${
+      admin === true
+        ? '<span class="admin-yes">yes</span> — administrative-legal entity'
+        : admin === false
+        ? '<span class="admin-no">no</span> — statistical grouping only'
+        : "\u2014"
+    }</span></div>`;
   }
 
   content.innerHTML = `
@@ -475,6 +491,8 @@ function showPanel(feat) {
       <div class="legend-row"><span class="legend-swatch" style="background:var(--selected)"></span> selected</div>
       <div class="legend-row"><span class="legend-swatch" style="background:var(--hover)"></span> hover</div>
       <div class="legend-row"><span class="legend-swatch" style="background:var(--overlay-yellow)"></span> below min. population</div>
+      <div class="legend-row"><span class="legend-swatch admin-swatch"></span> has own administration (legal)</div>
+      <div class="legend-row"><span class="legend-swatch region-swatch"></span> statistical grouping only</div>
     </div>
   `;
 }
