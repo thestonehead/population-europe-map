@@ -54,6 +54,19 @@
     </aside>
   </main>
 
+  <section id="bottompanel">
+    <div class="bp-header">
+      <h3>Statistics</h3>
+      <span class="bp-scope" id="bpScope"></span>
+      <span class="bp-hint">EU regions shown &middot; click a metric to plot its distribution</span>
+      <button id="bpToggle" type="button" aria-expanded="true" title="Collapse / expand">&minus;</button>
+    </div>
+    <div class="bp-body">
+      <div class="bp-stats" id="bpStats"></div>
+      <div class="bp-graph" id="bpGraph"></div>
+    </div>
+  </section>
+
   <div id="loadingOverlay" class="visible">
     <div class="spinner"></div>
     <p>Loading map data&hellip;</p>

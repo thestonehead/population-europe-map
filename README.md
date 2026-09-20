@@ -48,6 +48,17 @@ folder over HTTP so the GeoJSON files load).
   - If the slider value is **higher than the population of an entire (biggest)
     item**, that item gets a **transparent yellow overlay**.
   - Items below the threshold are dimmed.
+- **Statistics panel (bottom)** — for the **EU-member regions currently
+  shown** (non-EU countries/regions are excluded), three metrics with basic
+  descriptive statistics and a histogram each: **population**,
+  **MEPs / projected MEPs** (actual seats at country level, population-
+  proportional projection at region levels) and **MEPs / 100k people**.
+  The panel shows mode, mean, median, 3rd quartile, variance, standard
+  deviation and total per metric, plus a distribution graph with the median
+  marked; click a metric card to plot it. Quartiles use linear interpolation
+  (`numpy`/`statistics.quantiles(method="inclusive")` convention), variance and
+  standard deviation are the sample variants (n−1). The panel follows the
+  slider filter and can be collapsed with the −/+ button.
 
 ## Data
 

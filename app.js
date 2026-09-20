@@ -426,6 +426,214 @@ function render() {
 
   renderOverlays(overlays);
   renderLabels(features);
+  updateStatsPanel(features);
+}
+
+// ---------------------------------------------------------------------------
+// Bottom statistics panel (EU regions shown only)
+// ---------------------------------------------------------------------------
+
+const statsPanel = {
+  metric: "population", // which metric the histogram plots
+  collapsed: false,
+};
+
+function isEuFeature(feat) {
+  const cc = feat.properties.level === "country" ? feat.properties.id : feat.properties.country;
+  return countryMeps(cc) != null;
+}
+
+// MEPs for a feature: the real count at country level, the population-
+// proportional projection at region levels.
+function mepsOf(feat) {
+  if (feat.properties.level === "country") {
+    return feat.properties.meps;
+  }
+  return projectedMeps(feat);
+}
+
+// The three metrics the panel offers, each computed over the EU features
+// currently shown on the map.
+function statsMetrics(features) {
+  const eu = features.filter(isEuFeature);
+  const rows = [];
+  for (const f of eu) {
+    const pop = f.properties.population || 0;
+    const meps = mepsOf(f);
+    if (pop <= 0 || meps == null) continue;
+    rows.push({
+      feature: f,
+      population: pop,
+      meps: meps,
+      mepsPer100k: (meps / pop) * 100_000,
+    });
+  }
+  return rows;
+}
+
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (base + 1 < sorted.length) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  }
+  return sorted[base];
+}
+
+function meanOf(values) {
+  if (!values.length) return null;
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+function varianceOf(values) {
+  if (values.length < 2) return null;
+  const m = meanOf(values);
+  return values.reduce((s, v) => s + (v - m) * (v - m), 0) / (values.length - 1);
+}
+
+function modeOf(values) {
+  if (!values.length) return null;
+  const counts = new Map();
+  for (const v of values) counts.set(v, (counts.get(v) || 0) + 1);
+  let best = null, bestN = -1;
+  for (const [v, n] of counts) {
+    if (n > bestN || (n === bestN && v < best)) best = v, bestN = n;
+  }
+  return { value: best, count: bestN };
+}
+
+function fmtStat(v, digits = 2) {
+  if (v == null || Number.isNaN(v)) return "\u2014";
+  if (Math.abs(v) >= 1000) return v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (Math.abs(v) >= 10) return v.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  return v.toLocaleString("en-US", { maximumFractionDigits: digits });
+}
+
+const METRIC_DEFS = [
+  { key: "population", title: "Population", unit: "", digits: 0 },
+  { key: "meps", title: "MEPs / Projected MEPs", unit: "", digits: 0 },
+  { key: "mepsPer100k", title: "MEPs / 100k people", unit: "", digits: 2 },
+];
+
+function updateStatsPanel(features) {
+  const statsEl = document.getElementById("bpStats");
+  const graphEl = document.getElementById("bpGraph");
+  const scopeEl = document.getElementById("bpScope");
+  if (!statsEl || !graphEl) return;
+
+  const rows = statsMetrics(features);
+  const levelLabel = LEVEL_LABELS[state.level] || state.level;
+  scopeEl.textContent = rows.length
+    ? `${levelLabel} \u00b7 ${rows.length} EU region${rows.length === 1 ? "" : "s"}`
+    : `${levelLabel} \u00b7 no EU regions shown`;
+
+  if (!rows.length) {
+    statsEl.innerHTML = '<p class="placeholder">No EU-member regions are shown \u2014 statistics apply to EU regions only.</p>';
+    graphEl.innerHTML = "";
+    return;
+  }
+
+  const cards = [];
+  for (const def of METRIC_DEFS) {
+    const values = rows.map((r) => r[def.key]);
+    const sorted = [...values].sort((a, b) => a - b);
+    const mean = meanOf(values);
+    const variance = varianceOf(values);
+    const sd = variance == null ? null : Math.sqrt(variance);
+    const q3 = quantile(sorted, 0.75);
+    const mode = modeOf(values);
+    const median = quantile(sorted, 0.5);
+    const sum = values.reduce((s, v) => s + v, 0);
+    cards.push({
+      def,
+      n: values.length,
+      sum,
+      mean,
+      median,
+      q3,
+      variance,
+      sd,
+      mode,
+      values,
+    });
+  }
+
+  statsEl.innerHTML = cards
+    .map(
+      (c, i) => `
+      <div class="metric-card${statsPanel.metric === c.def.key ? " active" : ""}" data-metric="${c.def.key}">
+        <div class="m-title"><span>${c.def.title}</span><span class="m-n">n = ${c.n}</span></div>
+        <div class="m-chips">
+          <span class="m-chip">mode <b>${c.mode ? fmtStat(c.mode.value, c.def.digits) + (c.mode.count > 1 ? " \u00d7" + c.mode.count : "") : "\u2014"}</b></span>
+          <span class="m-chip">mean <b>${fmtStat(c.mean, c.def.digits)}</b></span>
+          <span class="m-chip">median <b>${fmtStat(c.median, c.def.digits)}</b></span>
+          <span class="m-chip">Q3 <b>${fmtStat(c.q3, c.def.digits)}</b></span>
+          <span class="m-chip">variance <b>${fmtStat(c.variance, c.def.digits)}</b></span>
+          <span class="m-chip">std. dev. <b>${fmtStat(c.sd, c.def.digits)}</b></span>
+          <span class="m-chip">total <b>${fmtStat(c.sum, c.def.digits)}</b></span>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  statsEl.querySelectorAll(".metric-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      statsPanel.metric = card.dataset.metric;
+      updateStatsPanel(features);
+    });
+  });
+
+  const active = cards.find((c) => c.def.key === statsPanel.metric) || cards[0];
+  drawHistogram(graphEl, active);
+}
+
+function drawHistogram(el, card) {
+  const values = card.values;
+  const W = 560, H = 160, PAD = { l: 8, r: 8, t: 18, b: 18 };
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const BINS = 12;
+  if (!isFinite(min) || !isFinite(max)) { el.innerHTML = ""; return; }
+  const width = max - min || 1;
+  const bins = Array.from({ length: BINS }, (_, i) => ({
+    x0: min + (width / BINS) * i,
+    x1: min + (width / BINS) * (i + 1),
+    n: 0,
+  }));
+  for (const v of values) {
+    let idx = Math.min(BINS - 1, Math.floor(((v - min) / width) * BINS));
+    if (idx < 0) idx = 0;
+    bins[idx].n++;
+  }
+  const maxN = Math.max(...bins.map((b) => b.n));
+  const plotW = W - PAD.l - PAD.r;
+  const plotH = H - PAD.t - PAD.b;
+  const median = quantile([...values].sort((a, b) => a - b), 0.5);
+  const medianX = PAD.l + ((median - min) / width) * plotW;
+
+  let bars = "";
+  bins.forEach((b, i) => {
+    const h = maxN ? (b.n / maxN) * plotH : 0;
+    const x = PAD.l + (plotW / BINS) * i;
+    const y = PAD.t + plotH - h;
+    bars += `<g class="bar"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(plotW / BINS - 1).toFixed(1)}" height="${Math.max(h, b.n ? 1 : 0).toFixed(1)}"></rect>`;
+    if (b.n) bars += `<text x="${(x + (plotW / BINS - 1) / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}">${b.n}</text>`;
+    bars += "</g>";
+  });
+
+  el.innerHTML = `
+    <svg class="histogram" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      <line class="axis" x1="${PAD.l}" y1="${PAD.t + plotH}" x2="${W - PAD.r}" y2="${PAD.t + plotH}"></line>
+      ${bars}
+      <line class="median-line" x1="${medianX.toFixed(1)}" y1="${PAD.t}" x2="${medianX.toFixed(1)}" y2="${PAD.t + plotH}"></line>
+      <text class="median-line-label" x="${Math.min(medianX + 3, W - PAD.r - 60).toFixed(1)}" y="${PAD.t - 6}">median ${fmtStat(median, card.def.digits)}</text>
+      <text class="axis-label" x="${PAD.l}" y="${H - 4}">${fmtStat(min, card.def.digits)}</text>
+      <text class="axis-label" x="${W - PAD.r}" y="${H - 4}" text-anchor="end">${fmtStat(max, card.def.digits)}</text>
+    </svg>
+    <div class="bp-hint">${card.def.title} \u2014 distribution of ${card.n} EU regions shown</div>
+  `;
 }
 
 // Re-run label decluttering after pan/zoom: which labels fit changes with the
@@ -577,6 +785,17 @@ minPopSlider.addEventListener("input", () => {
   updateSliderDisplay();
   render();
 });
+
+const bpToggle = document.getElementById("bpToggle");
+if (bpToggle) {
+  bpToggle.addEventListener("click", () => {
+    statsPanel.collapsed = !statsPanel.collapsed;
+    const panel = document.getElementById("bottompanel");
+    panel.classList.toggle("collapsed", statsPanel.collapsed);
+    bpToggle.textContent = statsPanel.collapsed ? "+" : "\u2212";
+    bpToggle.setAttribute("aria-expanded", String(!statsPanel.collapsed));
+  });
+}
 
 function resetPanel() {
   const panel = document.getElementById("sidepanel");
